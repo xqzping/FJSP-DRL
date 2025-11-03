@@ -301,6 +301,9 @@ class FJSPEnvForSameOpNums:
         self.op_waiting_time = np.zeros((self.number_of_envs, self.number_of_ops))
         self.op_remain_work = np.zeros((self.number_of_envs, self.number_of_ops))
 
+        # record the scheduling history for downstream visualization, e.g. Gantt charts
+        self.schedule_log = [[] for _ in range(self.number_of_envs)]
+
         self.op_available_mch_nums = np.copy(self.compatible_op) / self.number_of_machines
         self.pair_free_time = np.zeros((self.number_of_envs, self.number_of_jobs,
                                         self.number_of_machines))
@@ -351,6 +354,19 @@ class FJSPEnvForSameOpNums:
             self.env_idxs, chosen_op]
         self.true_mch_free_time[self.env_idxs, chosen_mch] = self.true_op_ct[
             self.env_idxs, chosen_op]
+
+        # log scheduling decisions for each environment instance
+        local_op_idx = chosen_op - self.job_first_op_id[self.env_idxs, chosen_job]
+        for env_id in range(self.number_of_envs):
+            self.schedule_log[env_id].append({
+                "job": int(chosen_job[env_id]),
+                "operation": int(local_op_idx[env_id]),
+                "global_operation": int(chosen_op[env_id]),
+                "machine": int(chosen_mch[env_id]),
+                "start_time": float(true_chosen_op_st[env_id]),
+                "end_time": float(self.true_op_ct[env_id, chosen_op[env_id]]),
+                "processing_time": float(self.true_op_pt[env_id, chosen_op[env_id], chosen_mch[env_id]])
+            })
 
         self.current_makespan = np.maximum(self.current_makespan, self.true_op_ct[
             self.env_idxs, chosen_op])
@@ -456,6 +472,14 @@ class FJSPEnvForSameOpNums:
                           self.fea_pairs)
 
         return self.state, np.array(reward), self.done()
+
+    def get_schedule_log(self, env_idx=0):
+        """Return the recorded scheduling log for the specified environment index."""
+        if not hasattr(self, 'schedule_log'):
+            return []
+        if env_idx < 0 or env_idx >= len(self.schedule_log):
+            raise IndexError("env_idx out of range")
+        return self.schedule_log[env_idx]
 
     def done(self):
         """
